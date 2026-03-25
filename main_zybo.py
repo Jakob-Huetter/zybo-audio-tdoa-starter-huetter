@@ -170,7 +170,8 @@ def apply_waveform_state(audio, gen, state):
     # Reset the TX FIFO (FIFO2) to clear any residual audio
     # This ensures a clean start for each waveform
     # 
-    
+    audio.set_fifo_reset(1)
+    audio.set_fifo_state(0)
     #STUDENT_TODO_END
 
     # create default txbuffer of zeros so that incomplete function calls are handled gracefully 
@@ -213,9 +214,16 @@ def apply_waveform_state(audio, gen, state):
     elif state["wave"] == "ZERO":
         txbuf = gen.stereo_zero(cfg.FIFOSIZE)
         audio.fifo_send(txbuf)
+    elif state["wave"] == "AWGN":
+        txbuf = gen.stereo_gaussian_noise(cfg.FIFOSIZE, state["noise_std"], state["alpha"])
+        audio.fifo_send(txbuf)
+    elif state["wave"] == "CHIRP":
+        txbuf = gen.stereo_chirp(cfg.FIFOSIZE, 1000, 10000)
+        audio.fifo_send(txbuf)
+    elif state["wave"] == "PRBS":
+        txbuf = gen.stereo_prbs(cfg.FIFOSIZE)
+        audio.fifo_send(txbuf)
 
-    # ADD THE OTHER WAVEFORM TYPES AWGN, PRBS, CHIRP HERE
-    #elif state["wave"] == "AWGN":
 
 #STUDENT_TODO_END
 
@@ -354,8 +362,8 @@ def main():
             sinc_stub = np.sinc(x).astype(np.float32)
             corrLR = corrTxL = corrTxR = sinc_stub
 
-        #plot_rx_tx_waveforms(rxright, rxleft, txref, fs=48000.0, nsamples=None, title="RX/TX Waveforms")
-        #plot_3_correlations(corrLR, corrTxL, corrTxR, mm_per_sample=None, title="Correlations")
+        # plot_rx_tx_waveforms(rxright, rxleft, txref_last, fs=48000.0, nsamples=None, title="RX/TX Waveforms")
+        # plot_3_correlations(corrLR, corrTxL, corrTxR, mm_per_sample=None, title="Correlations")
 
 
         lag_lr,  peak_lr  = peak_lag_of_fftshifted_corr(corrLR)

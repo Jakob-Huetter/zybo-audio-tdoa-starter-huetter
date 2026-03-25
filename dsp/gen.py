@@ -82,13 +82,39 @@ class Generator:
         amp: float = 0.9,
         seed: Optional[int] = None,
     ) -> np.ndarray:
-        left_i16 = np.zeros(nsamples, dtype=np.int16)  #dummy code
-        right_i16 = np.zeros(nsamples, dtype=np.int16)  #dummy code
-
+        rng = np.random.default_rng(seed) if seed is not None else self.rng
+        left_f = rng.normal(0.0, std, size=nsamples)
+        right_f = rng.normal(0.0, std, size=nsamples)
+        left_i16 = (np.clip(left_f * amp, -1.0, 1.0) * 32767).astype(np.int16)
+        right_i16 = (np.clip(right_f * amp, -1.0, 1.0) * 32767).astype(np.int16)
         return pack_i16_to_i32(left_i16, right_i16)
 
-        #def stereo_chirp()
-        #def stereo_prbs()
+    def stereo_chirp(
+        self,
+        nsamples: int,
+        f_start: float,
+        f_end: float,
+        amp: float = 0.9,
+        seed: Optional[int] = None,
+    ) -> np.ndarray:
+        t = np.arange(nsamples, dtype=np.float64)
+        k = (f_end - f_start) / nsamples
+        phase = 2.0 * np.pi * (f_start * t + 0.5 * k * t ** 2)
+        left_f = np.sin(phase)
+        right_f = np.sin(phase)
+        left_i16 = (np.clip(left_f * amp, -1.0, 1.0) * 32767).astype(np.int16)
+        right_i16 = (np.clip(right_f * amp, -1.0, 1.0) * 32767).astype(np.int16)
+        return pack_i16_to_i32(left_i16, right_i16)
+
+    def stereo_prbs(
+        self,
+        nsamples: int,
+        amp: float = 0.9,
+        seed: Optional[int] = None,
+    ) -> np.ndarray:
+        rng = np.random.default_rng(seed) if seed is not None else self.rng
+        left_i16 = (rng.integers(0, 2, size=nsamples) * 2 - 1).astype(np.int16) * int(amp * 32767)
+        right_i16 = (rng.integers(0, 2, size=nsamples) * 2 - 1).astype(np.int16) * int(amp * 32767)
+        return pack_i16_to_i32(left_i16, right_i16)
     
-    
-        #STUDENT_TODO_END
+    #STUDENT_TODO_END

@@ -168,13 +168,14 @@ class Audio():
         setreg(self.ip_mmap, self.shadow_regs, reg.audio_mute_right, 1)
 
     def initialize(self):
-        self.set_fifo_reset(1)
-        self.set_fifo_reset(0)
-
         self.set_mic_state(0)
         self.set_line_state(1)
-        
-        self.set_fifo_state()
+        setreg(self.ip_mmap, self.shadow_regs, reg.fxgen_wavsel, 0x4)
+        setreg(self.ip_mmap, self.shadow_regs, reg.audio_select, 0x1)
+        setreg(self.ip_mmap, self.shadow_regs, reg.audio_mute_left, 0x1)
+        self.set_audio_loop(0)
+        self.set_fifo_rx_trig(0)
+
 
     def set_fifo_reset(self, state):
         setreg(self.ip_mmap, self.shadow_regs, reg.fifo2_reset, state)
@@ -195,5 +196,15 @@ class Audio():
             data[i] = fifo.value
             rx = np.array(data, dtype=np.uint32)
         return rx
-
+    
+    def fifo_send(self, data):
+        self.set_fifo_reset(1)
+        self.set_fifo_reset(0)
+        tstat = time.perf_counter()
+        fifo = self._fifo_u32
+        for sample in data:
+            fifo.value = sample
+    
+    def set_audio_loop(self, state):
+        setreg(self.ip_mmap, self.shadow_regs, reg.audio_loop_en, state)
     #STUDENT_TODO_END:
