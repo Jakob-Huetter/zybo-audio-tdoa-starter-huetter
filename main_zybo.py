@@ -142,13 +142,7 @@ def init_hw():
 
     audio = Audio(ip["core"], shadow_regs)
     #STUDENT_TODO_START:
-# HINT
-    # initialize the audio interface here
-    # 
-    # 
-    # 
-    # 
-    # 
+    audio.initialize()
     
    #STUDENT_TODO_END:  
  
@@ -344,11 +338,15 @@ def main():
         
         # STUDENT_TODO_END    
 
+        rxbuf = audio.fifo_receive(cfg.FIFOSIZE)
+        audio.set_fifo_rx_trig()
+        rxleft, rxright = unpack_stereo_int32(rxbuf)
+
         # -------- compute 3 correlations --------
         try:
             corrLR  = cyclic_crosscorr_fft(rxleft, rxright, normalize=True, demean=True).astype(np.float32)
-            corrTxL = cyclic_crosscorr_fft(txref,   rxleft, normalize=True, demean=True).astype(np.float32)
-            corrTxR = cyclic_crosscorr_fft(txref,   rxright, normalize=True, demean=True).astype(np.float32)
+            corrTxL = cyclic_crosscorr_fft(txref_last,   rxleft, normalize=True, demean=True).astype(np.float32)
+            corrTxR = cyclic_crosscorr_fft(txref_last,   rxright, normalize=True, demean=True).astype(np.float32)
         except Exception:
             # Fallback stub: generate dummy sinc-like correlations if DSP functions fail/missing
             N = cfg.FIFOSIZE

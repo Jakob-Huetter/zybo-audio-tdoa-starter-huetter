@@ -6,6 +6,7 @@ Created on Mon Jan 19 09:50:43 2026
 """
 
 import numpy as np
+import time
 import hw.regs as reg
 
 
@@ -153,19 +154,46 @@ class Audio():
         self.shadow_regs    = shadow_regs
         self._fifo_u32 = self.ip_mmap.bind_u32(reg.fifo2_rdata[0])  # fifo_reg[0] is your word address
     #example methods
-    def mic_activate(self):
-        setreg(self.ip_mmap, self.shadow_regs, reg.mic_select,1)
-        return            
-    def line_activate(self):
-        setreg(self.ip_mmap, self.shadow_regs,reg.line_select,1)
-        return    
+    def set_mic_state(self, state):
+        setreg(self.ip_mmap, self.shadow_regs, reg.mic_select, state)  
+
+    def set_line_state(self, state):
+        setreg(self.ip_mmap, self.shadow_regs,reg.line_select,state)
+
     #STUDENT_TODO_START:
-# HINT
-    # add remaining methods for the audio interface here 
-    # 
-    # 
-    # 
-    #    
+    def mute_left_speaker(self):
+        setreg(self.ip_mmap, self.shadow_regs, reg.audio_mute_left, 1)
+
+    def mute_right_speaker(self):
+        setreg(self.ip_mmap, self.shadow_regs, reg.audio_mute_right, 1)
+
+    def initialize(self):
+        self.set_fifo_reset(1)
+        self.set_fifo_reset(0)
+
+        self.set_mic_state(0)
+        self.set_line_state(1)
+        
+        self.set_fifo_state()
+
+    def set_fifo_reset(self, state):
+        setreg(self.ip_mmap, self.shadow_regs, reg.fifo2_reset, state)
     
+    def set_fifo_state(self, state=1):
+        setreg(self.ip_mmap, self.shadow_regs, reg.fifo2_en, state)
+    
+    def set_fifo_rx_stream(self, state=1):
+        setreg(self.ip_mmap, self.shadow_regs, reg.fifo2_rx_stream, state)
+    
+    def set_fifo_rx_trig(self, state=1):
+        setreg(self.ip_mmap, self.shadow_regs, reg.fifo2_rxtrig, state)
+    
+    def fifo_receive(self,nsamples):
+        fifo = self._fifo_u32
+        data = [0] * nsamples
+        for i in range(nsamples):
+            data[i] = fifo.value
+            rx = np.array(data, dtype=np.uint32)
+        return rx
+
     #STUDENT_TODO_END:
- 
