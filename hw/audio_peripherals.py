@@ -174,6 +174,9 @@ class Audio():
         setreg(self.ip_mmap, self.shadow_regs, reg.audio_select, 0x1)
         setreg(self.ip_mmap, self.shadow_regs, reg.audio_mute_left, 0x1)
         self.set_audio_loop(0)
+        self.set_fifo_state(1)
+        self.set_fifo_reset(0)
+        self.set_fifo_rx_stream(1)
         self.set_fifo_rx_trig(0)
 
 
@@ -189,12 +192,11 @@ class Audio():
     def set_fifo_rx_trig(self, state=1):
         setreg(self.ip_mmap, self.shadow_regs, reg.fifo2_rxtrig, state)
     
-    def fifo_receive(self,nsamples):
+    def fifo_receive(self, nsamples):
         fifo = self._fifo_u32
-        data = [0] * nsamples
+        rx = np.empty(nsamples, dtype=np.uint32)
         for i in range(nsamples):
-            data[i] = fifo.value
-            rx = np.array(data, dtype=np.uint32)
+            rx[i] = fifo.value
         return rx
     
     def fifo_send(self, data):

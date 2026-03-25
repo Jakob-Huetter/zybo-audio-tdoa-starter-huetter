@@ -171,7 +171,7 @@ def apply_waveform_state(audio, gen, state):
     # This ensures a clean start for each waveform
     # 
     audio.set_fifo_reset(1)
-    audio.set_fifo_state(0)
+    audio.set_fifo_state(1)
     #STUDENT_TODO_END
 
     # create default txbuffer of zeros so that incomplete function calls are handled gracefully 
@@ -186,7 +186,7 @@ def apply_waveform_state(audio, gen, state):
     # It then mimics the original behavior by loading only the first m samples 
     # into the Zybo TX FIFO (audio.fifo_send(txbuf[:mN])) instead of the whole FIFO.
     # It measures and prints how long the FIFO load took in microseconds for visibility.
-       
+    t_start = time.perf_counter()
     if state["wave"] == "SINE":
         txbuf = gen.stereo_sine_harmonics(
             cfg.FIFOSIZE,
@@ -223,6 +223,13 @@ def apply_waveform_state(audio, gen, state):
     elif state["wave"] == "PRBS":
         txbuf = gen.stereo_prbs(cfg.FIFOSIZE)
         audio.fifo_send(txbuf)
+
+    t_end = time.perf_counter()
+    end_wall = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    print(
+        f"wave={state.get('wave', 'UNKNOWN')} end_time={end_wall} "
+        f"elapsed_ms={(t_end - t_start) * 1000.0:.2f}"
+    )
 
 
 #STUDENT_TODO_END
@@ -308,6 +315,7 @@ def main():
         t0 = time.perf_counter()
 
         # -------- handle commands (non-blocking) --------
+        t_cmd0 = time.perf_counter()
         any_change = False
         while True:
             try:
@@ -326,14 +334,17 @@ def main():
             if changed:
                 any_change = True
                 print("CMD from %s: %s -> %s" % (src, msg.strip(), state))
+        cmd_ms = (time.perf_counter() - t_cmd0) * 1000.0
 
         # Apply waveform only if something relevant changed
+        t_wave0 = time.perf_counter()
         if any_change:
             wave_hash = (state["wave"], state["m"], state["n"], state["alpha"],
                          state["noise_std"], state["nharm"], state["rolloff"])
             if wave_hash != last_wave_hash:
                 txref_last = apply_waveform_state(audio, gen, state)
                 last_wave_hash = wave_hash
+        wave_ms = (time.perf_counter() - t_wave0) * 1000.0
     
         # STUDENT_TODO_START: acquire RX audio
 # HINT
@@ -346,11 +357,15 @@ def main():
         
         # STUDENT_TODO_END    
 
+        t_rx0 = time.perf_counter()
+        audio.set_fifo_rx_trig(1)
         rxbuf = audio.fifo_receive(cfg.FIFOSIZE)
-        audio.set_fifo_rx_trig()
+        audio.set_fifo_rx_trig(0)
         rxleft, rxright = unpack_stereo_int32(rxbuf)
+        rx_ms = (time.perf_counter() - t_rx0) * 1000.0
 
         # -------- compute 3 correlations --------
+        t_corr0 = time.perf_counter()
         try:
             corrLR  = cyclic_crosscorr_fft(rxleft, rxright, normalize=True, demean=True).astype(np.float32)
             corrTxL = cyclic_crosscorr_fft(txref_last,   rxleft, normalize=True, demean=True).astype(np.float32)
@@ -361,11 +376,13 @@ def main():
             x = np.linspace(-4, 4, N, dtype=np.float32)
             sinc_stub = np.sinc(x).astype(np.float32)
             corrLR = corrTxL = corrTxR = sinc_stub
+        corr_ms = (time.perf_counter() - t_corr0) * 1000.0
 
         # plot_rx_tx_waveforms(rxright, rxleft, txref_last, fs=48000.0, nsamples=None, title="RX/TX Waveforms")
         # plot_3_correlations(corrLR, corrTxL, corrTxR, mm_per_sample=None, title="Correlations")
 
 
+        t_post0 = time.perf_counter()
         lag_lr,  peak_lr  = peak_lag_of_fftshifted_corr(corrLR)
         lag_txl, peak_txl = peak_lag_of_fftshifted_corr(corrTxL)
         lag_txr, peak_txr = peak_lag_of_fftshifted_corr(corrTxR)
@@ -386,10 +403,14 @@ def main():
         else:  # "TXR"
             corr_to_send = slice_around_center(corrTxR, cfg.WINDOW_LEN)
             which_u8 = 2
+        post_ms = (time.perf_counter() - t_post0) * 1000.0
 
+        t_send0 = time.perf_counter()
         sender.send_corr(corr_to_send)
+        send_ms = (time.perf_counter() - t_send0) * 1000.0
 
         # -------- send MEAS packet --------
+        t_meas0 = time.perf_counter()
         meas_pkt = pack_meas(
             frame_id,
             lag_lr, lag_txl_adj, lag_txr_adj,
@@ -397,12 +418,20 @@ def main():
             which_u8
         )
         meas_sock.sendto(meas_pkt, meas_addr)
+        meas_ms = (time.perf_counter() - t_meas0) * 1000.0
 
         frame_id = (frame_id + 1) & 0xFFFFFFFF
 
         # -------- maintain ~10 fps --------
         elapsed = time.perf_counter() - t0
+        elapsed_ms = elapsed * 1000.0
+        print(f"loop_elapsed_ms={elapsed_ms:.2f}")
         sleep_left = cfg.LOOP_DT - elapsed
+        print(
+            f"loop_timing_ms frame={frame_id} cmd={cmd_ms:.2f} wave={wave_ms:.2f} "
+            f"rx={rx_ms:.2f} corr={corr_ms:.2f} post={post_ms:.2f} send={send_ms:.2f} "
+            f"meas={meas_ms:.2f} total={elapsed_ms:.2f} sleep={max(0.0, sleep_left) * 1000.0:.2f}"
+        )
         if sleep_left > 0:
             time.sleep(sleep_left)
 
