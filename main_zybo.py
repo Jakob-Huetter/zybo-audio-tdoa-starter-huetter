@@ -358,10 +358,12 @@ def main():
         # STUDENT_TODO_END    
 
         t_rx0 = time.perf_counter()
+        
         audio.set_fifo_rx_trig(1)
         rxbuf = audio.fifo_receive(cfg.FIFOSIZE)
         audio.set_fifo_rx_trig(0)
         rxleft, rxright = unpack_stereo_int32(rxbuf)
+
         rx_ms = (time.perf_counter() - t_rx0) * 1000.0
 
         # -------- compute 3 correlations --------

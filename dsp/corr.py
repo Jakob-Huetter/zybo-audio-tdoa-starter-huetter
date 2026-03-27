@@ -11,14 +11,25 @@ def cyclic_crosscorr_fft(x, y, normalize=True, demean=True):
     Cyclic cross-correlation via FFT + IFFT, returned FFTSHIFTED (zero-lag at center).
     """
     #STUDENT_TODO_START: Implement the cyclic cross-correlation function
-# HINT
+    # HINT
     # The cyclic cross-correlation function is implemented using the FFT.
     # The FFT is used to convert the time domain signals into the frequency domain.
     # The cross-correlation is then computed in the frequency domain.
     # The inverse FFT is used to convert the cross-correlation back into the time domain.
     # The result is returned as a numpy array.
-    
-#STUDENT_TODO_END 
+    if normalize:
+        x = x/np.std(x)
+        y = y/np.std(y)
+    if demean:
+        x = x - np.mean(x)
+        y = y - np.mean(y)
+
+    X = np.fft.fft(x)
+    Y = np.fft.fft(y)
+    R = np.fft.ifft(X * np.conj(Y))
+
+    return np.fft.fftshift(R.real)
+    #STUDENT_TODO_END 
 
 def peak_lag_of_fftshifted_corr(corr):
     corr = np.asarray(corr)
@@ -34,5 +45,3 @@ def slice_around_center(arr, win_len):
     half = int(win_len) // 2
     mid = N // 2
     return arr[mid-half:mid+half]
-  
-
